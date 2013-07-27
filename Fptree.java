@@ -10,11 +10,11 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 public class Fptree {
-	private static final float SUPPORT = 0.05f;
+	private static final float SUPPORT = 0.32f;
 	private static long absSupport;
 
 	public static void main(String[] args) {
-		List<String[]> matrix = Reader.readAsMatrix("retail.txt", "\t", "UTF-8");
+		List<String[]> matrix = Reader.readAsMatrix("d.txt", "\t", "UTF-8");
 		absSupport = (long) (SUPPORT * matrix.size());
 		System.out.println("absSupport " + absSupport);
 		Map<String, Integer> frequentMap = new LinkedHashMap<String, Integer>();// 一级频繁项
@@ -25,7 +25,7 @@ public class Fptree {
 		FpNode root = getFpTree(matrix, header, frequentMap);
 		printTree(root);
 		fpGrowth(root, header, null);
-	
+
 	}
 
 	/**
@@ -37,25 +37,29 @@ public class Fptree {
 	private static void fpGrowth(FpNode root, Map<String, FpNode> header,
 			String idName) {
 		Set<String> keys = header.keySet();
-		for (String key : keys) {
-			List<FpNode> leafs = new ArrayList<FpNode>();
-			FpNode link = header.get(key);
-			while (link != null) {
-				leafs.add(link);
-				link = link.next;
+		String[] keysArray = keys.toArray(new String[0]);
+		String firstIdName = keysArray[keysArray.length - 1];
+		if (isSinglePath(header, firstIdName)) {
+			if (idName == null)
+				return;
+			FpNode leaf = header.get(firstIdName);
+			List<FpNode> paths = new ArrayList<FpNode>();// 自顶向上保存路径结点
+			paths.add(leaf);
+			FpNode node = leaf;
+			while (node.parent.idName != null) {
+				paths.add(node.parent);
+				node = node.parent;
 			}
-			if (leafs.size() == 1) {// 只有一条路径，就组合即可得到频繁项集
-				if (idName == null)
-					continue;
-				FpNode leaf = leafs.get(0);
-				List<FpNode> paths = new ArrayList<FpNode>();// 自顶向上保存路径结点
-				paths.add(leaf);
-				while (leaf.parent.idName != null) {
-					paths.add(leaf.parent);
-					leaf = leaf.parent;
+			getCombinationPattern(paths, idName);
+		} else {
+			for (int i = keysArray.length - 1; i >= 0; i--) {
+				String key = keysArray[i];
+				List<FpNode> leafs = new ArrayList<FpNode>();
+				FpNode link = header.get(key);
+				while (link != null) {
+					leafs.add(link);
+					link = link.next;
 				}
-				getCombinationPattern(paths, idName);
-			} else {
 				Map<List<String>, Long> paths = new HashMap<List<String>, Long>();
 				for (FpNode leaf : leafs) {
 					List<String> path = new ArrayList<String>();
@@ -68,13 +72,29 @@ public class Fptree {
 						paths.put(path, leaf.count);
 				}
 				Holder holder = getConditionFpTree(paths);
-				if (holder.root != null)
+				if (holder.header.size() != 0) {
+					if (idName != null)
+						key = idName + " " + key;
 					fpGrowth(holder.root, holder.header, key);
+				}
 			}
 		}
 
 	}
 
+	private static boolean isSinglePath(Map<String, FpNode> header,
+			String tableLink) {
+		if (header.get(tableLink).next == null)
+			return true;
+		return false;
+	}
+
+	/**
+	 * 生成条件树
+	 * 
+	 * @param paths
+	 * @return
+	 */
 	private static Holder getConditionFpTree(Map<List<String>, Long> paths) {
 		List<String[]> matrix = new ArrayList<String[]>();
 		for (Map.Entry<List<String>, Long> entry : paths.entrySet()) {
@@ -96,7 +116,7 @@ public class Fptree {
 	 */
 	private static void getCombinationPattern(List<FpNode> paths, String idName) {
 		// System.out.println("paths "+paths);
-//		System.out.println("idName " + idName);
+		// System.out.println("idName " + idName);
 		int size = paths.size();
 		for (int mask = 1; mask < (1 << size); mask++) {
 			List<FpNode> set = new ArrayList<FpNode>();
