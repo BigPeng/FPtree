@@ -25,7 +25,6 @@ public class Fptree {
 		FpNode root = getFpTree(matrix, header, frequentMap);
 		printTree(root);
 		fpGrowth(root, header, null);
-
 	}
 
 	/**
