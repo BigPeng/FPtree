@@ -1,8 +1,8 @@
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,17 +14,23 @@ public class Fptree {
 	private static long absSupport;
 
 	public static void main(String[] args) {
-		List<String[]> matrix = Reader.readAsMatrix("d.txt", "\t", "UTF-8");
+		List<String[]> matrix = Reader.readAsMatrix("dm.txt", "\t", "UTF-8");
 		absSupport = (long) (SUPPORT * matrix.size());
 		System.out.println("absSupport " + absSupport);
 		Map<String, Integer> frequentMap = new LinkedHashMap<String, Integer>();// 一级频繁项
 		Map<String, FpNode> header = getHeader(matrix, frequentMap);
-		System.out.println(frequentMap);
-		System.out.println(header);
-		System.out.println(header.size());
+//		System.out.println(frequentMap);
+//		System.out.println(header);
+//		System.out.println(header.size());
 		FpNode root = getFpTree(matrix, header, frequentMap);
-		printTree(root);
-		fpGrowth(root, header, null);
+//		printTree(root);
+		Map<Set<FpNode>, Long> frequents = fpGrowth(root, header, null);
+//		System.out.println(frequents + "frequents");
+		for (Map.Entry<Set<FpNode>, Long> fre : frequents.entrySet()) {
+			for (FpNode node : fre.getKey())
+				System.out.print(node.idName + " ");
+			System.out.println(": " + fre.getValue());
+		}
 
 	}
 
@@ -34,14 +40,15 @@ public class Fptree {
 	 * @param root
 	 * @param header
 	 */
-	private static void fpGrowth(FpNode root, Map<String, FpNode> header,
-			String idName) {
+	private static Map<Set<FpNode>, Long> fpGrowth(FpNode root,
+			Map<String, FpNode> header, String idName) {
+		Map<Set<FpNode>, Long> conditionFres = new HashMap<Set<FpNode>, Long>();
 		Set<String> keys = header.keySet();
 		String[] keysArray = keys.toArray(new String[0]);
 		String firstIdName = keysArray[keysArray.length - 1];
 		if (isSinglePath(header, firstIdName)) {
 			if (idName == null)
-				return;
+				return conditionFres;
 			FpNode leaf = header.get(firstIdName);
 			List<FpNode> paths = new ArrayList<FpNode>();// 自顶向上保存路径结点
 			paths.add(leaf);
@@ -50,7 +57,10 @@ public class Fptree {
 				paths.add(node.parent);
 				node = node.parent;
 			}
-			getCombinationPattern(paths, idName);
+			conditionFres = getCombinationPattern(paths, idName);
+			FpNode tempNode = new FpNode(idName, -1L);
+			conditionFres = addLeafToFrequent(tempNode, conditionFres);
+
 		} else {
 			for (int i = keysArray.length - 1; i >= 0; i--) {
 				String key = keysArray[i];
@@ -61,6 +71,7 @@ public class Fptree {
 					link = link.next;
 				}
 				Map<List<String>, Long> paths = new HashMap<List<String>, Long>();
+				Long leafCount = 0L;
 				for (FpNode leaf : leafs) {
 					List<String> path = new ArrayList<String>();
 					FpNode node = leaf;
@@ -68,18 +79,51 @@ public class Fptree {
 						path.add(node.parent.idName);
 						node = node.parent;
 					}
+					leafCount += leaf.count;
 					if (path.size() > 0)
 						paths.put(path, leaf.count);
 				}
 				Holder holder = getConditionFpTree(paths);
 				if (holder.header.size() != 0) {
-					if (idName != null)
-						key = idName + " " + key;
-					fpGrowth(holder.root, holder.header, key);
+					// if (idName != null)
+					// key = idName + " " + key;
+					Map<Set<FpNode>, Long> preFres = fpGrowth(holder.root, holder.header, key);
+					if (idName != null) {
+						FpNode tempNode = new FpNode(idName, leafCount);
+						preFres = addLeafToFrequent(tempNode,
+								preFres);
+					}
+					conditionFres.putAll(preFres);
 				}
 			}
 		}
+		return conditionFres;
 
+	}
+
+	/**
+	 * 将叶子结点添加到频繁集中
+	 * 
+	 * @param leaf
+	 * @param conditionFres
+	 */
+	private static Map<Set<FpNode>, Long> addLeafToFrequent(FpNode leaf,
+			Map<Set<FpNode>, Long> conditionFres) {
+		if (conditionFres.size() == 0) {
+			Set<FpNode> set = new HashSet<FpNode>();
+			set.add(leaf);
+			conditionFres.put(set, leaf.count);
+		} else {
+			Set<Set<FpNode>> keys = new HashSet<Set<FpNode>>(
+					conditionFres.keySet());
+			for (Set<FpNode> set : keys) {
+				Long count = conditionFres.get(set);
+				conditionFres.remove(set);
+				set.add(leaf);
+				conditionFres.put(set, count);
+			}
+		}
+		return conditionFres;
 	}
 
 	private static boolean isSinglePath(Map<String, FpNode> header,
@@ -113,34 +157,44 @@ public class Fptree {
 	 * 
 	 * @param paths
 	 * @param idName
+	 * @return
 	 */
-	private static void getCombinationPattern(List<FpNode> paths, String idName) {
+	private static Map<Set<FpNode>, Long> getCombinationPattern(
+			List<FpNode> paths, String idName) {
 		// System.out.println("paths "+paths);
 		// System.out.println("idName " + idName);
+		Map<Set<FpNode>, Long> conditionFres = new HashMap<Set<FpNode>, Long>();
 		int size = paths.size();
 		for (int mask = 1; mask < (1 << size); mask++) {
-			List<FpNode> set = new ArrayList<FpNode>();
+			Set<FpNode> set = new HashSet<FpNode>();
 			// 找出每次可能的选择
 			for (int i = 0; i < paths.size(); i++) {
 				if ((mask & (1 << i)) > 0) {
 					set.add(paths.get(i));
 				}
 			}
-			StringBuilder builder = new StringBuilder();
-			builder.append("[");
 			long minValue = Long.MAX_VALUE;
 			for (FpNode node : set) {
-				builder.append(node.idName);
-				builder.append(" ");
 				if (node.count < minValue)
 					minValue = node.count;
 			}
-			builder.append(idName);
-			builder.append(" :");
-			builder.append(minValue);
-			builder.append("]");
-			System.out.println(builder.toString());
+			conditionFres.put(set, minValue);
+			// StringBuilder builder = new StringBuilder();
+			// builder.append("[");
+			// long minValue = Long.MAX_VALUE;
+			// for (FpNode node : set) {
+			// builder.append(node.idName);
+			// builder.append(" ");
+			// if (node.count < minValue)
+			// minValue = node.count;
+			// }
+			// builder.append(idName);
+			// builder.append(" :");
+			// builder.append(minValue);
+			// builder.append("]");
+			// System.out.println(builder.toString());
 		}
+		return conditionFres;
 	}
 
 	/**
