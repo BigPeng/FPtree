@@ -32,6 +32,20 @@ public class FpNode {
 	}
 
 	/**
+	 * 用于生成非跟结点
+	 * 
+	 * @param idName
+	 * @param count
+	 */
+	public FpNode(String idName, long count) {
+		this.idName = idName;
+		this.count = count;
+		children = new ArrayList<FpNode>();
+		next = null;
+		parent = null;
+	}
+
+	/**
 	 * 添加一个孩子
 	 * 
 	 * @param child
@@ -88,6 +102,7 @@ public class FpNode {
 	}
 
 	public String toString() {
-		return "id: " + idName + " count: " + count + " 孩子个数 " + children.size();
+		return "id: " + idName + " count: " + count + " 孩子个数 "
+				+ children.size();
 	}
 }

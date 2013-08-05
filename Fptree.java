@@ -10,28 +10,23 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 public class Fptree {
-	private static final float SUPPORT = 0.32f;
+	private static final float SUPPORT = 0.04f;
 	private static long absSupport;
 
 	public static void main(String[] args) {
-		List<String[]> matrix = Reader.readAsMatrix("dm.txt", "\t", "UTF-8");
+		List<String[]> matrix = Reader.readAsMatrix("d.txt", "\t", "GBK");
 		absSupport = (long) (SUPPORT * matrix.size());
 		System.out.println("absSupport " + absSupport);
 		Map<String, Integer> frequentMap = new LinkedHashMap<String, Integer>();// 一级频繁项
 		Map<String, FpNode> header = getHeader(matrix, frequentMap);
-//		System.out.println(frequentMap);
-//		System.out.println(header);
-//		System.out.println(header.size());
 		FpNode root = getFpTree(matrix, header, frequentMap);
-//		printTree(root);
+		// printTree(root);
 		Map<Set<FpNode>, Long> frequents = fpGrowth(root, header, null);
-//		System.out.println(frequents + "frequents");
 		for (Map.Entry<Set<FpNode>, Long> fre : frequents.entrySet()) {
 			for (FpNode node : fre.getKey())
 				System.out.print(node.idName + " ");
-			System.out.println(": " + fre.getValue());
+			System.out.println("\t" + fre.getValue());
 		}
-
 	}
 
 	/**
@@ -46,7 +41,7 @@ public class Fptree {
 		Set<String> keys = header.keySet();
 		String[] keysArray = keys.toArray(new String[0]);
 		String firstIdName = keysArray[keysArray.length - 1];
-		if (isSinglePath(header, firstIdName)) {
+		if (isSinglePath(header, firstIdName)) {// 只有一条路径时，求路径上的所有组合即可得到调节频繁集
 			if (idName == null)
 				return conditionFres;
 			FpNode leaf = header.get(firstIdName);
@@ -62,7 +57,7 @@ public class Fptree {
 			conditionFres = addLeafToFrequent(tempNode, conditionFres);
 
 		} else {
-			for (int i = keysArray.length - 1; i >= 0; i--) {
+			for (int i = keysArray.length - 1; i >= 0; i--) {// 递归求条件树的频繁集
 				String key = keysArray[i];
 				List<FpNode> leafs = new ArrayList<FpNode>();
 				FpNode link = header.get(key);
@@ -72,6 +67,7 @@ public class Fptree {
 				}
 				Map<List<String>, Long> paths = new HashMap<List<String>, Long>();
 				Long leafCount = 0L;
+				FpNode noParentNode = null;
 				for (FpNode leaf : leafs) {
 					List<String> path = new ArrayList<String>();
 					FpNode node = leaf;
@@ -82,16 +78,26 @@ public class Fptree {
 					leafCount += leaf.count;
 					if (path.size() > 0)
 						paths.put(path, leaf.count);
+					else {// 没有父结点
+						noParentNode = leaf;
+					}
+				}
+				if (noParentNode != null) {
+					Set<FpNode> oneItem = new HashSet<FpNode>();
+					oneItem.add(noParentNode);
+					if (idName != null)
+						oneItem.add(new FpNode(idName, -2));
+					conditionFres.put(oneItem, leafCount);
 				}
 				Holder holder = getConditionFpTree(paths);
 				if (holder.header.size() != 0) {
 					// if (idName != null)
 					// key = idName + " " + key;
-					Map<Set<FpNode>, Long> preFres = fpGrowth(holder.root, holder.header, key);
+					Map<Set<FpNode>, Long> preFres = fpGrowth(holder.root,
+							holder.header, key);
 					if (idName != null) {
 						FpNode tempNode = new FpNode(idName, leafCount);
-						preFres = addLeafToFrequent(tempNode,
-								preFres);
+						preFres = addLeafToFrequent(tempNode, preFres);
 					}
 					conditionFres.putAll(preFres);
 				}
@@ -126,9 +132,16 @@ public class Fptree {
 		return conditionFres;
 	}
 
+	/**
+	 * 判断一颗fptree是否为单一路径
+	 * 
+	 * @param header
+	 * @param tableLink
+	 * @return
+	 */
 	private static boolean isSinglePath(Map<String, FpNode> header,
 			String tableLink) {
-		if (header.get(tableLink).next == null)
+		if (header.size() == 1 && header.get(tableLink).next == null)
 			return true;
 		return false;
 	}
@@ -161,11 +174,9 @@ public class Fptree {
 	 */
 	private static Map<Set<FpNode>, Long> getCombinationPattern(
 			List<FpNode> paths, String idName) {
-		// System.out.println("paths "+paths);
-		// System.out.println("idName " + idName);
 		Map<Set<FpNode>, Long> conditionFres = new HashMap<Set<FpNode>, Long>();
 		int size = paths.size();
-		for (int mask = 1; mask < (1 << size); mask++) {
+		for (int mask = 1; mask < (1 << size); mask++) {// 求所有组合，从1开始表示忽略空集
 			Set<FpNode> set = new HashSet<FpNode>();
 			// 找出每次可能的选择
 			for (int i = 0; i < paths.size(); i++) {
@@ -179,20 +190,6 @@ public class Fptree {
 					minValue = node.count;
 			}
 			conditionFres.put(set, minValue);
-			// StringBuilder builder = new StringBuilder();
-			// builder.append("[");
-			// long minValue = Long.MAX_VALUE;
-			// for (FpNode node : set) {
-			// builder.append(node.idName);
-			// builder.append(" ");
-			// if (node.count < minValue)
-			// minValue = node.count;
-			// }
-			// builder.append(idName);
-			// builder.append(" :");
-			// builder.append(minValue);
-			// builder.append("]");
-			// System.out.println(builder.toString());
 		}
 		return conditionFres;
 	}
@@ -255,7 +252,6 @@ public class Fptree {
 					parent = node;// 以后的结点挂在当前结点下面
 				}
 			}
-			// System.out.println();
 		}
 		return root;
 	}
@@ -335,6 +331,11 @@ public class Fptree {
 	}
 }
 
+/**
+ * 
+ * 生成条件树用到的包装器
+ * 
+ */
 class Holder {
 	public final FpNode root;
 	public final Map<String, FpNode> header;
