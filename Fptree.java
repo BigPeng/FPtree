@@ -10,13 +10,14 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 public class Fptree {
-	private static final float SUPPORT = 0.04f;
+	private static final float SUPPORT = 0.6f;
 	private static long absSupport;
 
 	public static void main(String[] args) {
-		List<String[]> matrix = Reader.readAsMatrix("d.txt", "\t", "GBK");
+		List<String[]> matrix = Reader.readAsMatrix("d.txt", "\t", "utf-8");
 		absSupport = (long) (SUPPORT * matrix.size());
-		System.out.println("absSupport " + absSupport);
+		System.out.println("绝对支持度： " + absSupport);
+		System.out.println("频繁项集： ");
 		Map<String, Integer> frequentMap = new LinkedHashMap<String, Integer>();// 一级频繁项
 		Map<String, FpNode> header = getHeader(matrix, frequentMap);
 		FpNode root = getFpTree(matrix, header, frequentMap);
@@ -227,9 +228,9 @@ public class Fptree {
 		int count = 0;
 		for (String[] line : matrix) {
 			String[] orderLine = getOrderLine(line, frequentMap);
-			count++;
-			if (count % 100000 == 0)
-				System.out.println(count);
+//			count++;
+//			if (count % 100000 == 0)
+//				System.out.println(count);
 			FpNode parent = root;
 			for (String idName : orderLine) {
 				int index = parent.hasChild(idName);
